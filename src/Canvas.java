@@ -1,6 +1,7 @@
 import java.awt.*;
 import javax.swing.*;
-import java.util.concurrent.CopyOnWriteArrayList;
+import java.awt.image.BufferedImage;
+import java.util.concurrent.*;
 
 class Canvas extends JPanel {
     final int width = 1280;
@@ -11,10 +12,13 @@ class Canvas extends JPanel {
     private final JLabel fpsLabel; // JLabel to display FPS
     private int framesCounted = 0;
     private long lastFpsUpdateTime = System.nanoTime(); // Time of the last FPS update
+    private final BufferedImage offscreenImage;
+    private final ForkJoinPool forkJoinPool = new ForkJoinPool();
 
     public Canvas(JLabel fpsLabel) {
         this.fpsLabel = fpsLabel; // Initialize the FPS label
         setPreferredSize(new Dimension(width, height));
+        offscreenImage = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
     }
 
     public void addParticle(Particle particle) {
@@ -25,42 +29,68 @@ class Canvas extends JPanel {
         walls.add(wall);
     }
 
-    // Called by the timer in Simulator to update particles
-    public void updateParticles() {
-        for (Particle particle : particles) {
-            particle.updatePosition(1 / 60.0); // Assuming 60 FPS for deltaTime
+    public void startSimulation() {
+        new Thread(() -> {
+            while (true) {
+                long startTime = System.nanoTime();
+                updateParticles(Constants.TIME_STEP);
+                SwingUtilities.invokeLater(this::repaint);
+
+                try {
+                    long sleepTime = (Constants.OPTIMAL_TIME - (System.nanoTime() - startTime)) / 1000000;
+                    if (sleepTime > 0) {
+                        Thread.sleep(sleepTime);
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+        }).start();
+    }
+
+    private void updateParticles(double deltaTime) {
+        forkJoinPool.submit(() -> particles.parallelStream().forEach(particle -> {
+            particle.updatePosition(deltaTime);
             particle.handleWallCollision(width, height, walls);
-        }
-        repaint(); // Repaint the canvas to reflect position updates
+        })).join();
     }
 
     @Override
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
+
+        Graphics2D g2d = offscreenImage.createGraphics();
+        g2d.setColor(getBackground());
+        g2d.fillRect(0, 0, width, height);
+
         for (Particle particle : particles) {
-            // Invert the y-coordinate for drawing. Subtract y from canvas height and adjust for the particle's diameter.
-            int drawY = height - particle.position.y - 5; // Adjust for particle size to align at the bottom.
-            g.fillOval(particle.position.x, drawY, 5, 5);
+            int drawY = height - particle.position.y - 5;
+            g2d.setColor(Color.BLACK);
+            g2d.fillOval(particle.position.x, drawY, 5, 5);
         }
-        g.setColor(Color.BLACK);
+
         for (Wall wall : walls) {
-            g.drawLine(wall.start.x, height - wall.start.y, wall.end.x, height - wall.end.y);
+            g2d.setColor(Color.RED);
+            g2d.drawLine(wall.start.x, height - wall.start.y, wall.end.x, height - wall.end.y);
         }
+
+        g2d.dispose();
+        g.drawImage(offscreenImage, 0, 0, this);
 
         // Draw the border for the designated area
         g.setColor(Color.BLACK); // Set border color
-        g.drawRect(0, 0, width - 1, height - 1); // Draw border around the 1280x720 area
+        g.drawRect(0, 0, width, height); // Draw border around the 1280x720 area
 
+        updateFPS();
+    }
+
+    private void updateFPS() {
         long currentTime = System.nanoTime();
         framesCounted++;
-
-        // Update FPS every 0.5 seconds
-        if ((currentTime - lastFpsUpdateTime) >= 500_000_000L) { // 500,000,000 ns = 0.5 seconds
+        if ((currentTime - lastFpsUpdateTime) >= 500_000_000L) {
             double elapsedTimeInSeconds = (currentTime - lastFpsUpdateTime) / 1_000_000_000.0;
             double fps = framesCounted / elapsedTimeInSeconds;
             fpsLabel.setText(String.format("FPS: %.2f", fps));
-
-            // Reset counters
             framesCounted = 0;
             lastFpsUpdateTime = currentTime;
         }

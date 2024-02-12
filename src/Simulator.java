@@ -28,25 +28,7 @@ public class Simulator {
         frame.pack();
         frame.setVisible(true);
 
-        new Thread(() -> {
-            final int targetFPS = 60;
-            final long optimalTime = 1000000000 / targetFPS; // Nanoseconds per frame
-
-            while (true) {
-                long startTime = System.nanoTime();
-
-                // Update the simulation and repaint the canvas
-                canvas.updateParticles();
-                canvas.repaint();
-
-                long updateTime;
-                long waitTime;
-                do {
-                    updateTime = System.nanoTime() - startTime;
-                    waitTime = optimalTime - updateTime;
-                } while (waitTime > 0);
-            }
-        }).start();
+        canvas.startSimulation();
     }
 
     // Utility method to generate a random integer within a range
