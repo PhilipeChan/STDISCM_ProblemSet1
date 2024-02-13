@@ -40,21 +40,22 @@ class Particle {
 
     public void handleWallCollision(int canvasWidth, int canvasHeight, CopyOnWriteArrayList<Wall> walls) {
         int particleDiameter = 5;
+        int buffer = 1; // A small buffer to prevent sticking to the wall
+
         if (position.x <= 0) {
             angle = 180 - angle;
-            position.x = 0;
+            position.x = buffer; // Move particle slightly inside to prevent sticking
         } else if (position.x + particleDiameter >= canvasWidth) {
             angle = 180 - angle;
-            position.x = canvasWidth - particleDiameter;
+            position.x = canvasWidth - particleDiameter - buffer;
         }
 
-        // Adjust for y-coordinate considering the inversion
         if (position.y + particleDiameter >= canvasHeight) {
             angle = -angle;
-            position.y = canvasHeight - particleDiameter; // Ensure it's within bounds, considering the bottom as the reference.
+            position.y = canvasHeight - particleDiameter - buffer;
         } else if (position.y <= 0) {
             angle = -angle;
-            position.y = 0;
+            position.y = buffer;
         }
 
         // Handle wall collisions
@@ -115,13 +116,18 @@ class Particle {
         normalX /= length;
         normalY /= length;
 
-        // Reflect the incident vector off the wall's normal vector
-        double dotProduct = 2 * (incidentX * normalX + incidentY * normalY);
-        double reflectX = incidentX - dotProduct * normalX;
-        double reflectY = incidentY - dotProduct * normalY;
+        // Correctly calculate the dot product between the incident vector and the wall's normal vector
+        double dotProduct = incidentX * normalX + incidentY * normalY;
+
+        // Reflect the incident vector off the wall's normal vector using the correct reflection formula
+        double reflectX = incidentX - 2 * dotProduct * normalX;
+        double reflectY = incidentY - 2 * dotProduct * normalY;
 
         // Convert the reflected vector back to an angle
         angle = Math.toDegrees(Math.atan2(reflectY, reflectX));
-    }
 
+        // Ensure the angle is normalized to the range [0, 360)
+        if (angle < 0) angle += 360;
+        else if (angle >= 360) angle -= 360;
+    }
 }
