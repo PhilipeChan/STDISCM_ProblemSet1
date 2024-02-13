@@ -13,7 +13,8 @@ class Canvas extends JPanel {
     private int framesCounted = 0;
     private long lastFpsUpdateTime = System.nanoTime(); // Time of the last FPS update
     private final BufferedImage offscreenImage;
-    private final ForkJoinPool forkJoinPool = new ForkJoinPool();
+    private final ForkJoinPool physicsThreadPool = new ForkJoinPool();
+    private final ForkJoinPool renderingThreadPool = new ForkJoinPool();
 
     public Canvas(JLabel fpsLabel) {
         this.fpsLabel = fpsLabel; // Initialize the FPS label
@@ -33,8 +34,8 @@ class Canvas extends JPanel {
         new Thread(() -> {
             while (true) {
                 long startTime = System.nanoTime();
-                updateParticles(Constants.TIME_STEP);
-                SwingUtilities.invokeLater(this::repaint);
+                updateParticles(Constants.TIME_STEP); // Update particle physics
+                SwingUtilities.invokeLater(this::repaint); // Repaint the canvas
 
                 try {
                     long sleepTime = (Constants.OPTIMAL_TIME - (System.nanoTime() - startTime)) / 1000000;
@@ -49,7 +50,7 @@ class Canvas extends JPanel {
     }
 
     private void updateParticles(double deltaTime) {
-        forkJoinPool.submit(() -> particles.parallelStream().forEach(particle -> {
+        physicsThreadPool.submit(() -> particles.parallelStream().forEach(particle -> {
             particle.updatePosition(deltaTime);
             particle.handleWallCollision(width, height, walls);
         })).join();
@@ -63,11 +64,12 @@ class Canvas extends JPanel {
         g2d.setColor(getBackground());
         g2d.fillRect(0, 0, width, height);
 
-        for (Particle particle : particles) {
+        // Load balancing for rendering particles
+        renderingThreadPool.submit(() -> particles.parallelStream().forEach(particle -> {
             int drawY = height - particle.position.y - 5;
             g2d.setColor(Color.BLACK);
             g2d.fillOval(particle.position.x, drawY, 5, 5);
-        }
+        })).join();
 
         for (Wall wall : walls) {
             g2d.setColor(Color.RED);
