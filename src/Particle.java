@@ -1,5 +1,5 @@
 import java.awt.*;
-import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.List;
 
 class Particle {
     Point position; // Utilize Point for x and y coordinates
@@ -38,7 +38,7 @@ class Particle {
         }
     }
 
-    public void handleWallCollision(int canvasWidth, int canvasHeight, CopyOnWriteArrayList<Wall> walls) {
+    public void handleWallCollision(int canvasWidth, int canvasHeight, List<Wall> walls) {
         int particleDiameter = 5;
         int buffer = 1; // A small buffer to prevent sticking to the wall
 

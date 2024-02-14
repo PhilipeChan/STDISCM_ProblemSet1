@@ -1,41 +1,48 @@
 import java.awt.*;
 import javax.swing.*;
 import java.awt.image.BufferedImage;
+import java.util.ArrayList;
 import java.util.concurrent.*;
+import java.util.List;
 
 class Canvas extends JPanel {
     final int width = 1280;
     final int height = 720;
-    private final CopyOnWriteArrayList<Particle> particles = new CopyOnWriteArrayList<>();
-    private final CopyOnWriteArrayList<Wall> walls = new CopyOnWriteArrayList<>();
-    // FPS tracking
-    private final JLabel fpsLabel; // JLabel to display FPS
+    private final List<Particle> particles = new ArrayList<>();
+    private final List<Wall> walls = new ArrayList<>();
+    private final Object particlesLock = new Object();
+    private final Object wallsLock = new Object();
+    private final JLabel fpsLabel;
     private int framesCounted = 0;
-    private long lastFpsUpdateTime = System.nanoTime(); // Time of the last FPS update
+    private long lastFpsUpdateTime = System.nanoTime();
     private final BufferedImage offscreenImage;
     private final ForkJoinPool physicsThreadPool = new ForkJoinPool();
     private final ForkJoinPool renderingThreadPool = new ForkJoinPool();
 
     public Canvas(JLabel fpsLabel) {
-        this.fpsLabel = fpsLabel; // Initialize the FPS label
+        this.fpsLabel = fpsLabel;
         setPreferredSize(new Dimension(width, height));
         offscreenImage = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
     }
 
     public void addParticle(Particle particle) {
-        particles.add(particle);
+        synchronized (particlesLock) {
+            particles.add(particle);
+        }
     }
 
     public void addWall(Wall wall) {
-        walls.add(wall);
+        synchronized (wallsLock) {
+            walls.add(wall);
+        }
     }
 
     public void startSimulation() {
         new Thread(() -> {
             while (true) {
                 long startTime = System.nanoTime();
-                updateParticles(Constants.TIME_STEP); // Update particle physics
-                SwingUtilities.invokeLater(this::repaint); // Repaint the canvas
+                updateParticles(Constants.TIME_STEP);
+                SwingUtilities.invokeLater(this::repaint);
 
                 try {
                     long sleepTime = (Constants.OPTIMAL_TIME - (System.nanoTime() - startTime)) / 1000000;
@@ -50,7 +57,11 @@ class Canvas extends JPanel {
     }
 
     private void updateParticles(double deltaTime) {
-        physicsThreadPool.submit(() -> particles.parallelStream().forEach(particle -> {
+        List<Particle> snapshot;
+        synchronized (particlesLock) {
+            snapshot = new ArrayList<>(particles);
+        }
+        physicsThreadPool.submit(() -> snapshot.parallelStream().forEach(particle -> {
             particle.updatePosition(deltaTime);
             particle.handleWallCollision(width, height, walls);
         })).join();
@@ -60,18 +71,26 @@ class Canvas extends JPanel {
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
 
+        List<Particle> particlesSnapshot;
+        List<Wall> wallsSnapshot;
+        synchronized (particlesLock) {
+            particlesSnapshot = new ArrayList<>(particles);
+        }
+        synchronized (wallsLock) {
+            wallsSnapshot = new ArrayList<>(walls);
+        }
+
         Graphics2D g2d = offscreenImage.createGraphics();
         g2d.setColor(getBackground());
         g2d.fillRect(0, 0, width, height);
 
-        // Load balancing for rendering particles
-        renderingThreadPool.submit(() -> particles.parallelStream().forEach(particle -> {
+        renderingThreadPool.submit(() -> particlesSnapshot.parallelStream().forEach(particle -> {
             int drawY = height - particle.position.y - 5;
             g2d.setColor(Color.BLACK);
             g2d.fillOval(particle.position.x, drawY, 5, 5);
         })).join();
 
-        for (Wall wall : walls) {
+        for (Wall wall : wallsSnapshot) {
             g2d.setColor(Color.RED);
             g2d.drawLine(wall.start.x, height - wall.start.y, wall.end.x, height - wall.end.y);
         }
@@ -79,9 +98,8 @@ class Canvas extends JPanel {
         g2d.dispose();
         g.drawImage(offscreenImage, 0, 0, this);
 
-        // Draw the border for the designated area
-        g.setColor(Color.BLACK); // Set border color
-        g.drawRect(0, 0, width, height); // Draw border around the 1280x720 area
+        g.setColor(Color.BLACK);
+        g.drawRect(0, 0, width, height);
 
         updateFPS();
     }
@@ -99,9 +117,8 @@ class Canvas extends JPanel {
     }
 
     public void addParticlesBetweenPoints(int n, Point start, Point end, double angle, double velocity) {
-        if (n <= 0) return; // No particles to add
+        if (n <= 0) return;
         if (n == 1) {
-            // Add a single particle at the start point
             addParticle(new Particle(start.x, start.y, angle, velocity));
             return;
         }
