@@ -57,13 +57,17 @@ class Canvas extends JPanel {
     }
 
     private void updateParticles(double deltaTime) {
-        List<Particle> snapshot;
+        List<Particle> particlesSnapshot;
+        List<Wall> wallsSnapshot;
         synchronized (particlesLock) {
-            snapshot = new ArrayList<>(particles);
+            particlesSnapshot = new ArrayList<>(particles);
         }
-        physicsThreadPool.submit(() -> snapshot.parallelStream().forEach(particle -> {
+        synchronized (wallsLock) {
+            wallsSnapshot = new ArrayList<>(walls);
+        }
+        physicsThreadPool.submit(() -> particlesSnapshot.parallelStream().forEach(particle -> {
             particle.updatePosition(deltaTime);
-            particle.handleWallCollision(width, height, walls);
+            particle.handleWallCollision(width, height, wallsSnapshot);
         })).join();
     }
 
