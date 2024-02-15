@@ -9,9 +9,16 @@ public class Simulator {
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.setLayout(new BorderLayout());
 
+        JPanel statusPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         JLabel fpsLabel = new JLabel("FPS: 0.00");
-        Canvas canvas = new Canvas(fpsLabel);
-        frame.add(fpsLabel, BorderLayout.NORTH);
+        JLabel particleLabel = new JLabel("Particles: 0");
+        JLabel wallLabel = new JLabel("Walls: 0");
+        Canvas canvas = new Canvas(fpsLabel, particleLabel, wallLabel);
+
+        statusPanel.add(fpsLabel);
+        statusPanel.add(particleLabel);
+        statusPanel.add(wallLabel);
+        frame.add(statusPanel, BorderLayout.NORTH);
         frame.add(canvas, BorderLayout.CENTER);
 
         JPanel inputPanel = new JPanel();

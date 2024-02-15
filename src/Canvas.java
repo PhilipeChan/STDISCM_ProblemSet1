@@ -13,14 +13,18 @@ class Canvas extends JPanel {
     private final Object particlesLock = new Object();
     private final Object wallsLock = new Object();
     private final JLabel fpsLabel;
+    private final JLabel particlesLabel;
+    private final JLabel wallsLabel;
     private int framesCounted = 0;
     private long lastFpsUpdateTime = System.nanoTime();
     private final BufferedImage offscreenImage;
     private final ForkJoinPool physicsThreadPool = new ForkJoinPool();
     private final ForkJoinPool renderingThreadPool = new ForkJoinPool();
 
-    public Canvas(JLabel fpsLabel) {
+    public Canvas(JLabel fpsLabel, JLabel particlesLabel, JLabel wallsLabel) {
         this.fpsLabel = fpsLabel;
+        this.particlesLabel = particlesLabel;
+        this.wallsLabel = wallsLabel;
         setPreferredSize(new Dimension(width, height));
         offscreenImage = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
     }
@@ -28,12 +32,22 @@ class Canvas extends JPanel {
     public void addParticle(Particle particle) {
         synchronized (particlesLock) {
             particles.add(particle);
+            SwingUtilities.invokeLater(() -> {
+                if (particlesLabel != null) {
+                    particlesLabel.setText("Particles: " + particles.size());
+                }
+            });
         }
     }
 
     public void addWall(Wall wall) {
         synchronized (wallsLock) {
             walls.add(wall);
+            SwingUtilities.invokeLater(() -> {
+                if (wallsLabel != null) {
+                    wallsLabel.setText("Walls: " + walls.size());
+                }
+            });
         }
     }
 
