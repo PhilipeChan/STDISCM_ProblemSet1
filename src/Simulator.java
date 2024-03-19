@@ -12,12 +12,12 @@ public class Simulator {
         JPanel statusPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         JLabel fpsLabel = new JLabel("FPS: 0.00");
         JLabel particleLabel = new JLabel("Particles: 0");
-        JLabel wallLabel = new JLabel("Walls: 0");
-        Canvas canvas = new Canvas(fpsLabel, particleLabel, wallLabel);
+        JLabel spritePositionLabel = new JLabel("Sprite Position: (Not in explorer mode)");
+        Canvas canvas = new Canvas(fpsLabel, particleLabel, spritePositionLabel);
 
         statusPanel.add(fpsLabel);
         statusPanel.add(particleLabel);
-        statusPanel.add(wallLabel);
+        statusPanel.add(spritePositionLabel);
         frame.add(statusPanel, BorderLayout.NORTH);
         frame.add(canvas, BorderLayout.CENTER);
 
@@ -48,9 +48,74 @@ public class Simulator {
     }
 
     private static void setupInputPanel(JPanel panel, Canvas canvas) {
-        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
-        panel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+        JPanel developerModePanel = new JPanel();
+        developerModePanel.setLayout(new BoxLayout(developerModePanel, BoxLayout.Y_AXIS));
+        panel.add(developerModePanel);
 
+        JPanel explorerModePanel = new JPanel();
+        explorerModePanel.setLayout(new BoxLayout(explorerModePanel, BoxLayout.Y_AXIS));
+        explorerModePanel.setBorder(BorderFactory.createTitledBorder(null, "Explorer Mode", TitledBorder.CENTER, TitledBorder.TOP));
+        explorerModePanel.setVisible(false);
+        panel.add(explorerModePanel);
+
+        JPanel explorerEntryPanel = new JPanel();
+        explorerEntryPanel.setLayout(new BoxLayout(explorerEntryPanel, BoxLayout.Y_AXIS));
+        explorerEntryPanel.setBorder(BorderFactory.createTitledBorder(null, "Enter Explorer Mode", TitledBorder.CENTER, TitledBorder.TOP));
+        developerModePanel.add(explorerEntryPanel);
+
+        JTextField xFieldExplorer = addLabeledTextField(explorerEntryPanel, "Sprite X:", "");
+        JTextField yFieldExplorer = addLabeledTextField(explorerEntryPanel, "Sprite Y:", "");
+
+        JPanel explorerControlPanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
+        JButton enterExplorerModeButton = new JButton("Enter Explorer Mode");
+        enterExplorerModeButton.addActionListener(e -> {
+            try {
+                int x = Integer.parseInt(xFieldExplorer.getText());
+                int y = Integer.parseInt(yFieldExplorer.getText());
+
+                if (x < 0 || x > 1280 || y < 0 || y > 720) {
+                    throw new IllegalArgumentException("X must be between 0 and 1280, Y must be between 0 and 720.");
+                }
+
+                canvas.enterExplorerMode(x, y);
+                developerModePanel.setVisible(false);
+                explorerModePanel.setVisible(true);
+            } catch (NumberFormatException ex) {
+                JOptionPane.showMessageDialog(panel, "Invalid input. Please enter valid numbers.");
+            } catch (IllegalArgumentException ex) {
+                JOptionPane.showMessageDialog(panel, ex.getMessage());
+            }
+        });
+        explorerControlPanel.add(enterExplorerModeButton);
+
+        JButton lastPositionButton = new JButton("Use Last Known Position");
+        lastPositionButton.addActionListener(e -> {
+            if (canvas.getSpritePosition() != null) {
+                canvas.enterExplorerModeAtLastPosition();
+                developerModePanel.setVisible(false);
+                explorerModePanel.setVisible(true);
+            } else {
+                JOptionPane.showMessageDialog(panel, "No last known position available.");
+            }
+        });
+        explorerControlPanel.add(lastPositionButton);
+
+        explorerEntryPanel.add(explorerControlPanel);
+
+        addParticleControls(developerModePanel, canvas);
+
+        JPanel returnToDevModePanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
+        JButton returnToDevModeButton = new JButton("Return to Developer Mode");
+        returnToDevModeButton.addActionListener(e -> {
+            explorerModePanel.setVisible(false);
+            developerModePanel.setVisible(true);
+            canvas.exitExplorerMode();
+        });
+        returnToDevModePanel.add(returnToDevModeButton);
+        explorerModePanel.add(returnToDevModePanel);
+    }
+
+    private static void addParticleControls(JPanel panel, Canvas canvas) {
         JPanel betweenPointsPanel = new JPanel();
         betweenPointsPanel.setLayout(new BoxLayout(betweenPointsPanel, BoxLayout.Y_AXIS));
         betweenPointsPanel.setBorder(BorderFactory.createTitledBorder(null, "Add Particles (Between Points)", TitledBorder.CENTER, TitledBorder.TOP));
@@ -199,46 +264,6 @@ public class Simulator {
         varyingVelocitiesButtonsPanel.add(addRandomParticlesVaryingVelocitiesButton);
         varyingVelocitiesPanel.add(varyingVelocitiesButtonsPanel);
         panel.add(varyingVelocitiesPanel);
-
-        JPanel addWallPanel = new JPanel();
-        addWallPanel.setLayout(new BoxLayout(addWallPanel, BoxLayout.Y_AXIS));
-        addWallPanel.setBorder(BorderFactory.createTitledBorder(null, "Add Wall", TitledBorder.CENTER, TitledBorder.TOP));
-        JTextField x1Field = addLabeledTextField(addWallPanel, "X1:", "");
-        JTextField y1Field = addLabeledTextField(addWallPanel, "Y1:", "");
-        JTextField x2Field = addLabeledTextField(addWallPanel, "X2:", "");
-        JTextField y2Field = addLabeledTextField(addWallPanel, "Y2:", "");
-        JPanel addWallButtonsPanel = new JPanel();
-        addWallButtonsPanel.setLayout(new FlowLayout(FlowLayout.CENTER, 10, 10));
-        JButton addWallButton = new JButton("Add Wall");
-        addWallButton.addActionListener(e -> {
-            try {
-                int x1 = Integer.parseInt(x1Field.getText());
-                int y1 = Integer.parseInt(y1Field.getText());
-                int x2 = Integer.parseInt(x2Field.getText());
-                int y2 = Integer.parseInt(y2Field.getText());
-
-                if (x1 < 0 || x1 > 1280 || x2 < 0 || x2 > 1280 || y1 < 0 || y1 > 720 || y2 < 0 || y2 > 720) {
-                    throw new IllegalArgumentException("X must be between 0 and 1280, Y must be between 0 and 720.");
-                }
-
-                canvas.addWall(new Wall(x1, y1, x2, y2));
-            } catch (NumberFormatException ex) {
-                JOptionPane.showMessageDialog(panel, "Invalid input for wall coordinates. Please enter valid integers.");
-            } catch (IllegalArgumentException ex) {
-                JOptionPane.showMessageDialog(panel, ex.getMessage());
-            }
-        });
-        JButton addRandomWallButton = new JButton("Add Random Wall");
-        addRandomWallButton.addActionListener(e -> {
-            Point start = new Point(getRandomIntInRange(0, 1280), getRandomIntInRange(0, 720));
-            Point end = new Point(getRandomIntInRange(0, 1280), getRandomIntInRange(0, 720));
-
-            canvas.addWall(new Wall(start.x, start.y, end.x, end.y));
-        });
-        addWallButtonsPanel.add(addWallButton);
-        addWallButtonsPanel.add(addRandomWallButton);
-        addWallPanel.add(addWallButtonsPanel);
-        panel.add(addWallPanel);
     }
 
     private static JTextField addLabeledTextField(JPanel panel, String labelText, String textFieldText) {
