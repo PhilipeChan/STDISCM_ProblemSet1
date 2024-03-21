@@ -6,3 +6,4 @@
 - Jaira Santos
 ## How to run 
 - Run the JAR file
+- Use WASD to move the sprite while in explorer mode
